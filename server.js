@@ -3,6 +3,9 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const { validateEmail, validateNumberOfGuests } = require('./validationUtils'); // Import custom validation functions
+const dotenv=require('dotenv')
+  dotenv.config()
+const nodemailer=require('nodemailer')
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -10,9 +13,22 @@ const port = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
-
+const tranporter=nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.gmail,
+        pass: process.env.password
+    }
+})
+tranporter.verify(function (error, success) {
+    if (error) {
+        console.log(error);
+    } else {
+        console.log('Server is ready to take our messages');
+    }
+});
 // MongoDB connection (replace with your actual MongoDB URI)
-mongoose.connect('mongodb+srv://sahilchhabra1551:v83T6YtW11Eg2oGo@cluster0.ga9vhez.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose.connect(process.env.mongodb_uri, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log('Connected to MongoDB'))
   .catch((error) => console.error('MongoDB connection error:', error));
 
@@ -64,7 +80,64 @@ app.post('/api/book', async (req, res) => {
     });
 
     await newBooking.save();
+    const sendBookingConfirmationEmail = (newbooking, bookingDetails) => {
+      
+    
+      const mailOptions = {
+        from:process.env.gmail ,
+        to: newbooking.email,
+        subject: 'Table Booking Confirmation',
+        html: `
+          <div style="font-family: 'Arial', sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px; background-color: #f9f9f9; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);">
+            <h1 style="text-align: center; color: #4CAF50; font-size: 24px; margin-bottom: 20px;">🎉 Booking Confirmation 🎉</h1>
+            <p style="font-size: 16px; color: #333;">Hello <strong>${newbooking.username}</strong>,</p>
+            <p style="font-size: 16px; color: #333;">Thank you for choosing Bliss Bakers! We are excited to confirm your table booking. Here are your booking details:</p>
+            
+            <div style="background-color: #fff; padding: 15px; border-radius: 8px; margin-top: 20px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);">
+              <p style="font-size: 16px; color: #333;"><strong>Booking ID:</strong> ${bookingDetails._id}</p>
+              <p style="font-size: 16px; color: #333;"><strong>Date:</strong> ${bookingDetails.date}</p>
+              <p style="font-size: 16px; color: #333;"><strong>Time:</strong> ${bookingDetails.time}</p>
+              <p style="font-size: 16px; color: #333;"><strong>Guests:</strong> ${bookingDetails.guests}</p>
+            </div>
+            
+            
+            <p style="font-size: 14px; color: #666;">If you need to make any changes to your booking, please don't hesitate to contact us.</p>
+            <p style="font-size: 14px; color: #666;">Best regards,</p>
+            <p style="font-size: 14px; color: #666;"><strong>Bliss Bakers Team</strong></p>
+          </div>
+    
+          <script>
+            document.querySelector('a').addEventListener('mouseover', function() {
+              this.style.backgroundColor = '#45a049';
+              this.style.transform = 'scale(1.05)';
+            });
+            document.querySelector('a').addEventListener('mouseout', function() {
+              this.style.backgroundColor = '#4CAF50';
+              this.style.transform = 'scale(1)';
+            });
+          </script>
+        `,
+      };
+    
+      tranporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          return console.log(error);
+        }
+        console.log('Booking confirmation email sent: %s', info.response);
+      });
+    };
+    
+    const bookingDetails = {
+      _id: "12345",
+      date: "2024-12-15",
+      time: "19:00",
+      guests: 4,
+    };
+    
+    sendBookingConfirmationEmail(newBooking, bookingDetails);
+    
     res.status(201).json({ message: 'Booking successfully created' });
+
   } catch (error) {
     res.status(500).json({ message: 'Error creating booking', error });
   }
